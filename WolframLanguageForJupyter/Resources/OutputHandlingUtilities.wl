@@ -171,42 +171,68 @@ If[
 *************************************)
 
 	(* generate HTML for the textual form of a result *)
-	toOutText[result_] := 
-		StringJoin[
-			(* preformatted *)
-			"<pre style=\"",
-			(* use Courier *)
-			StringJoin[{"&#", ToString[#1], ";"} & /@ ToCharacterCode["font-family: \"Courier New\",Courier,monospace;", "Unicode"]], 
-			"\">",
-			(* the textual form of the result *)
-			(* NOTE: the OutputForm (which ToString uses) of any expressions wrapped with, say, InputForm should
-				be identical to the string result of an InputForm-wrapped expression itself *)
-			StringJoin[{"&#", ToString[#1], ";"} & /@ 
-				ToCharacterCode[
-					(* toStringUsingOutput[result] *) ToString[result],
-					"Unicode"
-				]
-			],
-			(* end the element *)
-			"</pre>"
-		];
+    toOutText[result_] := 
+        Switch[JupyterOutTextForm, 
+        "Plain",
+        StringJoin[{"&#", ToString[#1], ";"} & /@ ToCharacterCode[ToString[result], "Unicode"]],
+        "TeX",
+        StringJoin[
+            "$$",
+            StringJoin[{"&#", ToString[#1], ";"} & /@ ToCharacterCode[ToString[result], "Unicode"]],
+            "$$"
+        ],
+        _,
+        StringJoin[
+            (* preformatted *)
+            "<pre style=\"",
+            (* use Courier *)
+            StringJoin[{"&#", ToString[#1], ";"} & /@ ToCharacterCode["font-family: \"Courier New\",Courier,monospace;", "Unicode"]], 
+            "\">",
+            (* the textual form of the result *)
+            (* NOTE: the OutputForm (which ToString uses) of any expressions wrapped with, say, InputForm should
+                be identical to the string result of an InputForm-wrapped expression itself *)
+            StringJoin[{"&#", ToString[#1], ";"} & /@ ToCharacterCode[ToString[result], "Unicode"]],
+            (* end the element *)
+            "</pre>"
+        ]
+        ];
 
 	(* generate HTML for the rasterized form of a result *)
-	toOutImage[result_] := 
-		StringJoin[
-			(* display a inlined PNG image encoded in base64 *)
-			"<img alt=\"Output\" src=\"data:image/png;base64,",
-			(* the rasterized form of the result, converted to base64 *)
-			BaseEncode[
-				UsingFrontEnd[ExportByteArray[
-					(If[Head[#1] === Manipulate, #1, Rasterize[#1]] &) @
-						$trueFormatType[result],
-					"PNG"
-				]]
-			],
-			(* end the element *)
-			"\">"
-		];
+    toOutImage[result_] := 
+        If[Head[JupyterImageResolution] === Integer,
+        StringJoin[
+            "<img alt=\"Output\" src=\"data:image/png;base64,",
+            BaseEncode[
+                UsingFrontEnd[
+                If[Head[result] === Manipulate,
+                    ExportByteArray[result, "GIF", "AnimationRepetitions"->Infinity],
+                    If[Head[result] === InformationDataGrid,
+                        ExportByteArray[Rasterize[result, ImageFormattingWidth->800, ImageResolution->2JupyterImageResolution], "PNG"], 
+                        ExportByteArray[Rasterize[result, ImageFormattingWidth->1000, ImageResolution->2JupyterImageResolution], "PNG"]
+                    ]
+                ]]
+            ],
+            If[Head[result] === Manipulate || Head[result] === InformationDataGrid, 
+                "\">", 
+                StringJoin["\" width=\"", 
+                ToString[Quotient[Rasterize[result, "RasterSize", ImageFormattingWidth->1000, ImageResolution->2JupyterImageResolution][[1]],2]], 
+                "\">"]
+            ]
+        ],
+        StringJoin[
+            (* display a inlined PNG image encoded in base64 *)
+            "<img alt=\"Output\" src=\"data:image/png;base64,",
+            (* the rasterized form of the result, converted to base64 *)
+            BaseEncode[
+                UsingFrontEnd[ExportByteArray[
+                    If[Head[result] === Manipulate, result, Rasterize[result]],
+                    "PNG"
+                ]]
+            ],
+            (* end the element *)
+            "\">"
+        ]
+        ];
 
 	(* end the private context for WolframLanguageForJupyter *)
 	End[]; (* `Private` *)
